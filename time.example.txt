@@ -1,0 +1,12 @@
+// Comments start with // 
+// Year-Month-Day 
+1776-07-03
+10:00 11:00 Last minute revision on contract for @USA #Contract 
+
+// Start End (universal time)
+12:00 13:00 Lunch with Thomas
+
+1776-07-04
+08:00 09:00 Breakfast with 56 "friends"
+
+14:00 18:00 Meeting to sign declaration for @USA
