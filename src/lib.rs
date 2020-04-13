@@ -1,3 +1,5 @@
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
 extern crate chrono;
 
 use chrono::{NaiveDate, NaiveTime};
@@ -18,9 +20,9 @@ enum TimeError {
 impl fmt::Display for TimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            TimeError::DateParse(ref err) => err.fmt(f),
-            TimeError::TimeParse(ref err) => err.fmt(f),
-            TimeError::ParseError(ref err) => err.fmt(f),
+            TimeError::DateParse(ref err)
+            | TimeError::TimeParse(ref err)
+            | TimeError::ParseError(ref err) => err.fmt(f),
             TimeError::TimeNotFound(ref s) => write!(f, "{}", s),
         }
     }
@@ -35,7 +37,7 @@ impl From<chrono::ParseError> for TimeError {
 }
 
 pub struct Time {
-    entries: HashMap<NaiveDate, Vec<TimeEntry>>,
+    pub entries: HashMap<NaiveDate, Vec<TimeEntry>>,
 }
 
 impl fmt::Display for Time {
@@ -55,10 +57,10 @@ impl fmt::Display for Time {
 
 #[allow(dead_code)] // allow date
 pub struct TimeEntry {
-    date: NaiveDate,
-    start: NaiveTime,
-    end: NaiveTime,
-    description: String,
+    pub date: NaiveDate,
+    pub start: NaiveTime,
+    pub end: NaiveTime,
+    pub description: String,
 }
 
 struct Duration {
@@ -78,6 +80,18 @@ impl fmt::Display for TimeEntry {
     }
 }
 
+/// Constructs a new Time struct typically from a config file
+/// the contents expect a specific time.txt format
+///
+/// Ex.
+/// 1822-01-15
+/// 03:00 04:00 Sketched ideas for a new machine
+/// 04:00 11:00 Created the first computer
+/// 15:30 17:30 Decided on the name, Difference Engine
+///
+/// # Errors
+/// If the string doesn't fit the time.txt format it will error.
+/// Common reasons are incorrect date and time format
 pub fn parse_time(contents: &str) -> Result<Time, Box<dyn Error>> {
     let mut t = Time {
         entries: HashMap::new(),
@@ -102,12 +116,9 @@ pub fn parse_time(contents: &str) -> Result<Time, Box<dyn Error>> {
         // Check if the line is a date to indicate the start of a
         // date block
         let d = NaiveDate::parse_from_str(line, "%Y-%m-%d").ok();
-        match d {
-            Some(d) => {
-                date = Some(d);
-                continue; // found a date so proceed to next line
-            }
-            None => (), // failed date parsing is ok
+        if let Some(d) = d {
+            date = Some(d);
+            continue; // found a date so proceed to next line
         }
 
         let (index, duration) = find_duration(line)?;
@@ -126,15 +137,8 @@ pub fn parse_time(contents: &str) -> Result<Time, Box<dyn Error>> {
             // Check to see if it has the date key
             // if it doesn't add the key and create the
             // entries Vec
-            if !t.entries.contains_key(&d) {
-                let entries = vec![{ entry }];
-                t.entries.insert(d, entries);
-            } else {
-                // The date key exists, so add to the
-                // entires vector
-                let entries = t.entries.get_mut(&d)?;
-                entries.push(entry);
-            }
+            let entries = t.entries.entry(d).or_insert_with(|| vec![]);
+            entries.push(entry);
 
             Some(d)
         });
@@ -185,7 +189,9 @@ fn find_duration(line: &str) -> Result<(usize, Duration), TimeError> {
             }
 
             // After we found two spaces we "should" have both start and end time
-            if num_of_spaces > 2 {
+            // Stop looking if we've read more than 12 characters and haven't
+            // found two spaces. The format dicates a max of HH:MM HH:MM
+            if num_of_spaces > 2 || i > 11 {
                 break;
             }
         }
@@ -194,9 +200,9 @@ fn find_duration(line: &str) -> Result<(usize, Duration), TimeError> {
     // If we have less than two spaces then we know we didn't
     // find a start or end date so continue
     if num_of_spaces < 2 {
-        return Err(TimeError::TimeNotFound(
-            "Neither start not end time not found".to_string(),
-        ));
+        Err(TimeError::TimeNotFound(
+            "Neither start or end time not found".to_string(),
+        ))
     } else {
         let st: NaiveTime;
         let et: NaiveTime;
