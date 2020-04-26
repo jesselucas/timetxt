@@ -1,8 +1,8 @@
 #![deny(clippy::all)]
 #![deny(clippy::pedantic)]
-extern crate chrono;
+#![warn(rust_2018_idioms)]
 
-use chrono::{NaiveDate, NaiveTime};
+use chrono::{Duration, NaiveDate, NaiveTime};
 use log::debug;
 use std::collections::HashMap;
 use std::error::Error;
@@ -18,7 +18,7 @@ enum TimeError {
 }
 
 impl fmt::Display for TimeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             TimeError::DateParse(ref err)
             | TimeError::TimeParse(ref err)
@@ -60,12 +60,8 @@ pub struct TimeEntry {
     pub date: NaiveDate,
     pub start: NaiveTime,
     pub end: NaiveTime,
+    pub duration: Duration,
     pub description: String,
-}
-
-struct Duration {
-    start: NaiveTime,
-    end: NaiveTime,
 }
 
 impl fmt::Display for TimeEntry {
@@ -121,7 +117,7 @@ pub fn parse_time(contents: &str) -> Result<Time, Box<dyn Error>> {
             continue; // found a date so proceed to next line
         }
 
-        let (index, duration) = find_duration(line)?;
+        let (index, start_time, end_time) = find_time_range(line)?;
         let desc = &line[index..line.len()];
         let desc = desc.trim();
 
@@ -129,8 +125,9 @@ pub fn parse_time(contents: &str) -> Result<Time, Box<dyn Error>> {
         date.and_then(|d| {
             let entry = TimeEntry {
                 date: d,
-                start: duration.start,
-                end: duration.end,
+                start: start_time,
+                end: end_time,
+                duration: end_time.signed_duration_since(start_time),
                 description: desc.to_string(),
             };
 
@@ -147,7 +144,7 @@ pub fn parse_time(contents: &str) -> Result<Time, Box<dyn Error>> {
     Ok(t)
 }
 
-fn find_duration(line: &str) -> Result<(usize, Duration), TimeError> {
+fn find_time_range(line: &str) -> Result<(usize, NaiveTime, NaiveTime), TimeError> {
     // The start date and end date are allows at the beginning of a line
     // and are separated by a space. Let's make sure we have two spaces
     let mut num_of_spaces = 0;
@@ -216,7 +213,7 @@ fn find_duration(line: &str) -> Result<(usize, Duration), TimeError> {
             None => return Err(TimeError::TimeNotFound("End time not found".to_string())),
         }
 
-        Ok((end_time_space, Duration { start: st, end: et }))
+        Ok((end_time_space, st, et))
     }
 }
 
